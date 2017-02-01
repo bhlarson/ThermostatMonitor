@@ -1,0 +1,17 @@
+{
+  "name": "ThermostatMonitor",
+  "version": "0.0.0",
+  "description": "ThermostatMonitor",
+  "main": "server.js",
+  "author": {
+    "name": "Brad Larson",
+    "email": "bhlarson@gmail.com"
+  },
+  "dependencies": {
+    "express": "4.14.0",
+    "mysql": "2.13.0",
+    "request": "2.79.0",
+    "noaa-weather": "0.0.4",
+    "node-schedule": "1.2.0"
+  }
+}
