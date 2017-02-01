@@ -3,3 +3,7 @@
 ################################################################################
 
 /.vs/ThermostatMonitor/v14
+/bin
+/node_modules
+/.ntvs_analysis.dat
+/obj/Debug
