@@ -31,7 +31,9 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="public\js\index.js" />
+    <Compile Include="public\js\jquery.js" />
     <Compile Include="server.js" />
+    <Content Include="Data\RTCOAWiFIAPIV1_3.pdf" />
     <Content Include="package.json" />
     <Content Include="public\css\style.css" />
     <Content Include="public\css\style.styl" />
@@ -39,6 +41,7 @@
     <Content Include="README.md" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="Data\" />
     <Folder Include="public\" />
     <Folder Include="public\css\" />
     <Folder Include="public\js\" />
