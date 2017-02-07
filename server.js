@@ -10,6 +10,7 @@ var mysql = require('mysql');
 const noaaWeather = require('noaa-weather');
 console.log("All External Dependancies Found");
 
+var pollPeriodMs = 300000;
 var weatherLocation = "Hillsboro, OR";
 var thermometerIPAddress = "192.168.1.82";
 var pool = mysql.createPool({
@@ -20,37 +21,21 @@ var pool = mysql.createPool({
     database        : 'homedb'
 });
 
-var port = process.env.PORT || 1337;
+var logInterval;
+var prevLog;
+var pervStatus;
+
+var port = process.env.PORT || 4454;
 app.use(express.static('public'));
 app.use(express.static('node_modules/socket.io/node_modules'));
+
 app.get('/', function (req, res) {
     res.sendFile('index.html')
 });
 
-var logInterval;
-var prevLog;
-var pervStatus;
 app.get('/StartLog', function (req, res) {
     console.log('/StartLog ');
-    if (logInterval) clearInterval(logInterval);
-    
-    Record(thermometerIPAddress, function (err, res) {
-        console.log(err);
-        console.log(res);
-    });
-    
-    try {
-        logInterval = setInterval(function (req, res) {
-            Record(thermometerIPAddress, function (err, res) {
-                console.log(err);
-                console.log(res);
-            });
-        }, 60000, req, res);
-    }
-    catch (err) {
-        io.sockets.emit('status', err);
-    }
-    
+    StartLog();
     res.send({ succeeded: true });
 });
 
@@ -115,8 +100,26 @@ io.on('connection', function (socket) {
 });
 
 
-http.listen(port, function () {
-});
+function  StartLog() {
+    if (logInterval) clearInterval(logInterval);
+    
+    try {
+        Record(thermometerIPAddress, function (err, res) {
+            if (err)
+                console.log(err);
+        });
+
+        logInterval = setInterval(function () {
+            Record(thermometerIPAddress, function (err, res) {
+                if (err)
+                    console.log(err);
+            });
+        }, pollPeriodMs);
+    }
+    catch (err) {
+        io.sockets.emit('status', err);
+    }
+}
 
 function CurrentState(ipAddr, callback)
 {
@@ -325,3 +328,7 @@ function Record(ipAddr, callback){
         });
     });
 }
+
+http.listen(port, function () {
+});
+StartLog();
