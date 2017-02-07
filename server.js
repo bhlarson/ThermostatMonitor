@@ -3,6 +3,7 @@
 var express = require('express');
 var app = express();
 var http = require('http').Server(app);
+var io = require('socket.io')(http);
 var request = require('request');
 var schedule = require('node-schedule');
 var mysql = require('mysql');
@@ -11,89 +12,46 @@ console.log("All External Dependancies Found");
 
 var weatherLocation = "Hillsboro, OR";
 var thermometerIPAddress = "192.168.1.82";
-
-// var pool = mysql.createPool({
-//    connectionLimit : 10,
-//    host            : '192.168.1.100',
-//    user            : 'brad',
-//    password        : 'brad',
-//    database        : 'homedb'
-//});
-
 var pool = mysql.createPool({
     connectionLimit : 10,
     host            : '192.168.1.95',
     user            : 'HomeControl',
+//  password        : 'password',
     database        : 'homedb'
 });
 
-//var rtstat = require('RTS');
-//var port = process.env.port || 1337;
-//http.createServer(function (req, res) {
-//    res.writeHead(200, { 'Content-Type': 'text/plain' });
-//    res.end('Hello World\n');
-//}).listen(port);
-
-//var tstat = rtstat.tstat('192.168.1.82');
-
-//tstat.sys().then(function (sys) {
-//    console.log("tstat.sys: "+JSON.stringify(sys));
-//}).catch(function (err) {
-//    console.log(err);
-//});
-
-//tstat.tstat().then(function (sys) {
-//    console.log("tstat.tstat : " + JSON.stringify(sys));
-//}).catch(function (err) {
-//    console.log(err);
-//});
-
-//tstat.datalog().then(function (sys) {
-//    console.log("tstat.datalog : " + JSON.stringify(sys));
-//}).catch(function (err) {
-//    console.log(err);
-//});
-
-//tstat.ttemp().then(function (sys) {
-//    console.log("tstat.ttemp : " + JSON.stringify(sys));
-//}).catch(function (err) {
-//    console.log(err);
-//}); 
-
-//var reqestStr = 'http://' + ipAddr + '/tstat';
-//request(reqestStr + '/ttemp/', function (error, response, body) {
-//    if (!error) {
-//        console.log(reqestStr + '/ttemp/ succeeded');
-//        var tHeat = JSON.parse(body);
-//        console.log(body);
-//    }
-//    else console.log(reqestStr + '/ttemp /' + ' failed: ' + error);
-//});
-
 var port = process.env.PORT || 1337;
 app.use(express.static('public'));
-app.use(express.static('node_modules/jquery-ui-1.12.1'));
+app.use(express.static('node_modules/socket.io/node_modules'));
 app.get('/', function (req, res) {
     res.sendFile('index.html')
 });
 
 var logInterval;
+var prevLog;
+var pervStatus;
 app.get('/StartLog', function (req, res) {
-    console.log('/StartLog');
+    console.log('/StartLog ');
+    if (logInterval) clearInterval(logInterval);
     
     Record(thermometerIPAddress, function (err, res) {
         console.log(err);
         console.log(res);
     });
     
-    logInterval = setInterval(function (req, res) {
-        Record(thermometerIPAddress, function (err, res) {
-            console.log(err);
-            console.log(res);
-        });
-    }, 300000, req, res);
-
-    res.send({succeeded:true});
+    try {
+        logInterval = setInterval(function (req, res) {
+            Record(thermometerIPAddress, function (err, res) {
+                console.log(err);
+                console.log(res);
+            });
+        }, 60000, req, res);
+    }
+    catch (err) {
+        io.sockets.emit('status', err);
+    }
+    
+    res.send({ succeeded: true });
 });
 
 app.get('/StopLog', function (req, res) {
@@ -115,13 +73,16 @@ app.get('/HeatLossMeasure', function (req, res) {
     var startJob = schedule.scheduleJob(start, function (hold, stop) {
         SetFanMode(thermometerIPAddress, FanMode.on, function (err, res) {
             console.log('SetFanMode');
-            console.log(err);
+            if(err) console.log(err);
+            if (res) console.log(res);
             SetTempHeat(thermometerIPAddress, hold, function (err, res) {
                 console.log('SetTempHeat');
-                console.log(err);
+                if (err) console.log(err);
+                if (res) console.log(res);
                 SetRunMode(thermometerIPAddress, RunMode.heat, function (err, res) {
                     console.log('SetRunMode');
-                    console.log(err);
+                    if (err) console.log(err);
+                    if (res) console.log(res);
                 });
             });
         });
@@ -134,6 +95,26 @@ app.get('/HeatLossAbort', function (req, res) {
 
 });
 
+io.on('connection', function (socket) {
+    socket.broadcast.emit('Server Connected');
+    socket.on('disconnect', function () {
+        console.log('Socket.IO  disconnected ' + socket.id);
+    });
+    socket.on('connect_failed', function () {
+        console.log('socket.io connect_failed');
+    })
+    socket.on('reconnect_failed', function () {
+        console.log('socket.io reconnect_failed');
+    })
+    socket.on('error', function (err) {
+        console.log('socket.io error:' + err);
+    })
+    socket.on('Action', function (data) {
+        console.log('Action ' + JSON.stringify(data));
+    });
+});
+
+
 http.listen(port, function () {
 });
 
@@ -143,21 +124,47 @@ function CurrentState(ipAddr, callback)
     request(reqestStr, function (error, response, body) {
         var state;
         if (!error && response.statusCode == 200) {
-            var state = JSON.parse(body);
+            state = JSON.parse(body);
         }
-        callback(error, state);
+        if (state.temp > 0 && (state.t_heat > 0 || state.t_cool > 0)) {
+            callback(error, state);
+        }
+        else { // 2nd try
+            request(reqestStr, function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    state = JSON.parse(body);
+                }
+                if (error || !state || state.temp <= 0 || !(state.t_heat > 0 || state.t_cool > 0)) {
+                    error = reqestStr + " failed status " +response.statusMessage+ " error " + error;
+                }
+                callback(error, state);
+            });
+        }
     });
 }
 
 function RunLog(ipAddr, callback)
 {
     var reqestStr = 'http://' + ipAddr + '/tstat/datalog/';
-    request(reqestStr, function (error, response, body) {
-        var log
-        if (!error) {
+     request(reqestStr, function (error, response, body) {
+        var log;
+        if (!error && response.statusCode == 200) {
             log = JSON.parse(body);
         }
-        callback(error, log);
+        if (log) {
+            callback(error, log);
+        }
+        else { // 2nd try
+            request(reqestStr, function (error, response, body) {
+                if (!error && response.statusCode == 200) {
+                    log = JSON.parse(body);
+                }
+                if (error || !log ) {
+                    error = reqestStr + " failed status " + response.statusMessage + " error " + error;
+                }
+                callback(error, log);
+            });
+        }
     });
 }
 
@@ -167,6 +174,10 @@ function TargetTemperature(ipAddr, callback){
         var targetTemperature;
         if (!error) {
             targetTemperature = JSON.parse(body);
+        }
+        else {
+            console.log("TargetTemperature failure");
+            console.log(error);
         }
         callback(error, targetTemperature);
     });
@@ -181,7 +192,13 @@ function SetRunMode(ipAddr, runMode, callback)
         method: "POST",
         json: { tmode: runMode }
     }, 
-       function (e, r, body) { callback(e, r.statusMessage)}
+        function (e, r, body) {
+            if (e) {
+                console.log("SetRunMode failure");
+                console.log(e);
+            }
+            callback(e, r.statusMessage)
+        }
     );
 }
 
@@ -193,7 +210,13 @@ function SetFanMode(ipAddr, fanMode, callback) {
         method: "POST",
         json: { fmode: fanMode }
     }, 
-       function (e, r, body) { callback(e, r.statusMessage) }
+       function (e, r, body) {
+            if (e) {
+                console.log("SetFanMode failure");
+                console.log(e);
+            }
+            callback(e, r.statusMessage)
+        }
     );
 }
 
@@ -204,7 +227,13 @@ function SetTempHeat(ipAddr, temperature, callback) {
         method: "POST",
         json: { t_heat: temperature }
     }, 
-       function (e, r, body) { callback(r.statusMessage) }
+       function (e, r, body) {
+            if (e) {
+                console.log("SetTempHeat failure");
+                console.log(e);
+            }
+            callback(r.statusMessage)
+        }
     );
 }
 
@@ -215,7 +244,13 @@ function SetTempCool(ipAddr, temperature, callback) {
         method: "POST",
         json: { t_cool: temperature }
     }, 
-       function (e, r, body) { callback(r.statusMessage) }
+       function (e, r, body) {
+            if (e) {
+                console.log("SetTempCool failure");
+                console.log(e);
+            }
+            callback(r.statusMessage)
+        }
     );
 }
 
@@ -226,6 +261,10 @@ function TemperatureSwing(ipAddr, callback) {
         if (!error) {
             tempSwing = JSON.parse(body);
         }
+        else {
+            console.log("TemperatureSwing failure");
+            console.log(error);
+        }
         callback(error, tempSwing);
     });
 }
@@ -233,87 +272,56 @@ function TemperatureSwing(ipAddr, callback) {
 function ThermostatConditions(ipAddr, callback) {
     CurrentState(ipAddr, function (eStatus, cStatus) {
         RunLog(ipAddr, function (eLog, rLog) {
-            TargetTemperature(ipAddr, function (eTemp, tTemp) {
-                var result = {
-                    errStatus: eStatus, 
-                    errLog: eLog, 
-                    status: cStatus,
-                    log: rLog,
-                    temp: tTemp
-                };
-                callback(result);
-            });
+            var result = {
+                errStatus: eStatus, 
+                errLog: eLog,
+                status: cStatus,
+                log: rLog
+            };
+            callback(result);
         });
     });
 }
 
 function Record(ipAddr, callback){
     noaaWeather(weatherLocation).then(function (strJson) {
-        var currentWeather = strJson.currentobservation;
+        var currentWeather;
+        if(strJson && strJson.currentobservation)
+            currentWeather = strJson.currentobservation;
+
         ThermostatConditions(ipAddr, function (result) {
-            var record = {
-                date: new Date(), 
-                exteriorTemperature: Number(currentWeather.Temp), 
-                interiorTemperature: result.status.temp, 
-                targetTemperature: 0, 
-                weather: currentWeather.Weather, 
-                windDir: currentWeather.Windd, 
-                windSpeed: currentWeather.Winds, 
-                fanOn: result.status.fstate == 1, 
-                heatOn: result.status.tstate == 1, 
-                coolOn: result.status.tstate == 2
-            };
-            
-            if (result.status.tmode == RunMode.heat) {
-                record.targetTemperature = result.temp.t_heat;
+            if (result.errStatus || result.errLog) {
+                io.sockets.emit('status', result);
+                console.log(JSON.stringify(result));
             }
-            else if(result.status.tmode == RunMode.cool) {
-                record.targetTemperature = result.temp.t_cool;
+            else {
+                var record = {
+                    date: new Date(), 
+                    exteriorTemperature: Number(currentWeather.Temp), 
+                    interiorTemperature: result.status.temp, 
+                    targetTemperature: isNaN, 
+                    weather: currentWeather.Weather, 
+                    windDir: currentWeather.Windd, 
+                    windSpeed: currentWeather.Winds, 
+                    fanOn: result.status.fstate == 1, 
+                    heatOn: result.status.tstate == 1, 
+                    coolOn: result.status.tstate == 2
+                };
+                
+                if (result.status.t_heat) {
+                    record.targetTemperature = result.status.t_heat;
+                }
+                else if (result.status.t_cool) {
+                    record.targetTemperature = result.status.t_cool;
+                }
+                prevLog =result.log
+                
+                pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
+                    callback(err, res)
+                    io.sockets.emit('status', record);
+                });
             }
-            
-            pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
-                callback(err, res)
-            });
 
         });
     });
 }
-    /*
-    var reqestStr = 'http://'+ ipAddr+'/tstat';
-    request(reqestStr, function (error, response, body) {
-        if (!error && response.statusCode == 200) {
-            var tStatus = JSON.parse(body);
-            console.log(reqestStr + '  succeeded');
-            console.log(body);
-        }
-        else console.log(reqestStr + ' failed: ' + error);
-    
-        request(reqestStr + '/datalog/', function (error, response, body) {
-            if (!error) {
-                var tDatalog = JSON.parse(body);
-                console.log(reqestStr + '/datalog/ succeeded');
-                console.log(body);
-            }
-            else console.log(reqestStr + '/datalog/' + ' failed: ' + error);
-        
-            request(reqestStr + '/ttemp/', function (error, response, body) {
-                if (!error) {
-                    console.log(reqestStr + '/ttemp/ succeeded');
-                    var tHeat = JSON.parse(body);
-                    console.log(body);
-                }
-                else console.log(reqestStr + '/ttemp /' + ' failed: ' + error);
-            
-                request({
-                    url: reqestStr, 
-                    method: "POST",
-                    json: { tmode: 1 }
-                }, 
-                     function (e, r, body) {
-                    //console.log(e);
-                    //console.log(r);
-                    console.log(r.request.body + " resturned status " + r.statusMessage);
-                });
-            });
-        });
-    });*/

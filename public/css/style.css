@@ -74,6 +74,10 @@ a {
     z-index: 100;
 }
 
+#statusBox{
+    width: 90%
+}
+
 label {
   color: #aaa;
   text-decoration: none;

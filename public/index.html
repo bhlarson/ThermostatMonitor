@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml">
 
 <head>
-    <title>Thermostat Monitor</title>
+    <titinfole>Thermostat Monitor</titinfole>
     <link href="css/style.css" rel="stylesheet" />
 </head>
 <body>
@@ -13,9 +13,11 @@
         <input type="button" value="Heat Transfer Abort" onclick="HeatLossAbort()" class="MainCtrl" />
     </div>
 
-    <form></form>
-
+    <div>
+        <textarea id="statusBox" rows="30"></textarea>
+    </div>
     <script src="js/jquery.js"></script>
+    <script src="js/socket.io.min.js"></script>
     <script src="js/index.js"></script>
 </body>
 </html>

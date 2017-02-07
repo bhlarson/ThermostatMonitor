@@ -1,6 +1,8 @@
+var socket = io();
 
 init();
 function init() {
+    socket.io._timeout = 30000;
 }
 
 function StartLog()
@@ -30,3 +32,7 @@ function HeatLossAbort() {
         console.log("HeatLossAbort " + JSON.stringify(res));
     });
 }
+
+socket.on('status', function (data) {
+    $('#statusBox').append(JSON.stringify(data) + "\n");
+});
