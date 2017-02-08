@@ -13,6 +13,7 @@
     "request": "2.79.0",
     "noaa-weather": "0.0.4",
     "node-schedule": "1.2.0",
-    "socket.io": "1.7.2"
+    "socket.io": "1.7.2",
+    "isomorphic-fetch": "2.2.1"
   }
 }

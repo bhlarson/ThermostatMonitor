@@ -7,7 +7,8 @@ var io = require('socket.io')(http);
 var request = require('request');
 var schedule = require('node-schedule');
 var mysql = require('mysql');
-const noaaWeather = require('noaa-weather');
+var fetch = require('isomorphic-fetch');
+//const noaaWeather = require('noaa-weather');
 console.log("All External Dependancies Found");
 
 var pollPeriodMs = 300000;
@@ -22,8 +23,7 @@ var pool = mysql.createPool({
 });
 
 var logInterval;
-var prevLog;
-var pervStatus;
+var prevTstat;
 
 var port = process.env.PORT || 4454;
 app.use(express.static('public'));
@@ -286,12 +286,24 @@ function ThermostatConditions(ipAddr, callback) {
     });
 }
 
-function Record(ipAddr, callback){
-    noaaWeather(weatherLocation).then(function (strJson) {
-        var currentWeather;
-        if(strJson && strJson.currentobservation)
-            currentWeather = strJson.currentobservation;
+function GetWeather(lat, lon) {
+    return new Promise(function (resolve, reject) {
+        // http://forecast.weather.gov/MapClick.php?FcstType=json&lon=-122.90274007259009&lat=45.516545019252334   
+        var str = 'http://forecast.weather.gov/MapClick.php?FcstType=json&lat=' + lat + '&lon=' + lon;
+        
+        fetch(str).then(function (response) {
+            if (response.status >= 400) {
+                reject(Error(response.statusText + " " + response.status));
+            }
+            return response.json();
+        }).then(function (weather) {
+            resolve(weather.currentobservation);
+        });
+    });
+}
 
+function Record(ipAddr, callback) {
+    GetWeather(45.516545019252334, -122.90274007259009).then(function (currentWeather) {
         ThermostatConditions(ipAddr, function (result) {
             if (result.errStatus || result.errLog) {
                 io.sockets.emit('status', result);
@@ -317,15 +329,17 @@ function Record(ipAddr, callback){
                 else if (result.status.t_cool) {
                     record.targetTemperature = result.status.t_cool;
                 }
-                prevLog =result.log
+                prevTstat = result
                 
                 pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
                     callback(err, res)
                     io.sockets.emit('status', record);
                 });
             }
-
-        });
+        })
+    }, function (err) {
+        var res;
+        callback(err, res);
     });
 }
 

@@ -34,5 +34,7 @@ function HeatLossAbort() {
 }
 
 socket.on('status', function (data) {
-    $('#statusBox').append(JSON.stringify(data) + "\n");
+    var sb = document.getElementById('statusBox');
+    sb.append(JSON.stringify(data) + "\n");
+    sb.scrollTop = sb.scrollHeight - 1;
 });
