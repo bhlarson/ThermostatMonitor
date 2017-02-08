@@ -39,7 +39,7 @@
     <Content Include="public\css\style.styl" />
     <Content Include="public\index.html" />
     <Content Include="README.md" />
-    <Content Include="ThermostatMonitor.conf" />
+    <Content Include="ThermostatMonitor.sh" />
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Data\" />

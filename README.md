@@ -6,9 +6,9 @@ using putty, log into diskstaiton
 > git clone https://github.com/bhlarson/ThermostatMonitor.git
 > cd ThermostatMonitor
 > npm update    <- this pulls down all the node module dependencies
-> sudo cp /volume1/web/node/ThermostatMonitor/ThermostatMonitor.conf /etc/init/ThermostatMonitor.conf
-> sudo chmod 777 /etc/init/ThermostatMonitor.conf
-> start ThermostatMonitor.conf
+
+Schedule start from DSM scheduled tasks
+
 Logs:
 
 Debug:
