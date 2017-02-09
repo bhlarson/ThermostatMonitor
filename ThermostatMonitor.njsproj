@@ -35,6 +35,7 @@
     <Compile Include="server.js" />
     <Content Include="Data\RTCOAWiFIAPIV1_3.pdf" />
     <Content Include="package.json" />
+    <Content Include="process.env" />
     <Content Include="public\css\style.css" />
     <Content Include="public\css\style.styl" />
     <Content Include="public\index.html" />

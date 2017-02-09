@@ -8,6 +8,16 @@ using putty, log into diskstaiton
 > npm update    <- this pulls down all the node module dependencies
 
 Schedule start from DSM scheduled tasks
+diskstaton->control pannel->task scheduler
+craete a triggered tasks
+In the dialog, use
+Task: ThermostatMonitor
+Uses: webguest
+Event: Boot-up
+
+On task settings, enable send run details email.
+
+On Settings, enable output recording to the desired location
 
 Logs:
 
