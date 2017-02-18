@@ -1,4 +1,4 @@
-﻿console.log("Starting ThermostatMonitor on " + process.platform);
+﻿console.log("Starting ThermostatMonitor on " + process.platform + "\n");
 
 var express = require('express');
 var app = express();
@@ -9,7 +9,7 @@ var schedule = require('node-schedule');
 var mysql = require('mysql');
 var fetch = require('isomorphic-fetch');
 //const noaaWeather = require('noaa-weather');
-console.log("All External Dependancies Found");
+console.log("All External Dependancies Found\n");
 
 var pollPeriodMs = 300000;
 var weatherLocation = "Hillsboro, OR";

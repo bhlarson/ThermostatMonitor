@@ -12,8 +12,8 @@ to update:
 > git pull
 
 kill process
-> ps -A  <-  lists all process.  Look for node process id
-> kill <node process id>
+> pidof node  <-  node process id
+> sudo kill <node process id>
 
 Schedule start from DSM scheduled tasks
 diskstaton->control pannel->task scheduler
