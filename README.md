@@ -7,6 +7,14 @@ using putty, log into diskstaiton
 > cd ThermostatMonitor
 > npm update    <- this pulls down all the node module dependencies
 
+to update:
+> cd /volume1/web/node/ThermostatMonitor
+> git pull
+
+kill process
+> ps -A  <-  lists all process.  Look for node process id
+> kill <node process id>
+
 Schedule start from DSM scheduled tasks
 diskstaton->control pannel->task scheduler
 craete a triggered tasks
