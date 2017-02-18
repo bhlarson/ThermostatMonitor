@@ -80,6 +80,17 @@ app.get('/HeatLossAbort', function (req, res) {
 
 });
 
+app.get('/Plot', function (req, res) {
+    var beginDateTime = req.query.begin;
+    var endDateTime = req.query.end;
+
+    GetLog(beginDateTime, endDateTime).then(function (logData) {
+        res.send(logData);
+    }).then(function (failure) {
+        res.send(failure);
+    });
+});
+
 io.on('connection', function (socket) {
     socket.broadcast.emit('Server Connected');
     socket.on('disconnect', function () {
@@ -125,21 +136,36 @@ function CurrentState(ipAddr, callback)
 {
     var reqestStr = 'http://' + ipAddr + '/tstat';
     request(reqestStr, function (error, response, body) {
-        var state;
-        if (!error && response.statusCode == 200) {
-            state = JSON.parse(body);
+        if (!error && response && response.statusCode == 200 && body) {
+            // Might have a good response.  Check data
+            var state = JSON.parse(body);
+            if (state && state.temp > 0 && (state.t_heat > 0 || state.t_cool > 0)) {
+                // Good response.  Send it back
+                callback(error, state);
+            }
         }
-        if (state.temp > 0 && (state.t_heat > 0 || state.t_cool > 0)) {
-            callback(error, state);
-        }
-        else { // 2nd try
+
+        else { // Bad response.  2nd try
             request(reqestStr, function (error, response, body) {
-                if (!error && response.statusCode == 200) {
+                var state;  // Start uninitialized.  Initialize if good.
+                if (error) {
+                    callback(error, state);
+                }
+                else if (!response || !body) {
+                    callback(new Error("Request data error"), state);
+                }
+                else if (response.statusCode == 200) {
                     state = JSON.parse(body);
+
+                    if (state.temp <= 0 && (state.t_heat <= 0 || state.t_cool <= 0)) {
+                        // Bad response.  Return it
+                        error = new Error("Bad thermostat data");
+                    }
                 }
-                if (error || !state || state.temp <= 0 || !(state.t_heat > 0 || state.t_cool > 0)) {
-                    error = reqestStr + " failed status " +response.statusMessage+ " error " + error;
+                else {
+                    error = new Error(reqestStr + " failed status " + response.statusMessage + " error " + error);
                 }
+
                 callback(error, state);
             });
         }
@@ -162,8 +188,8 @@ function RunLog(ipAddr, callback)
                 if (!error && response.statusCode == 200) {
                     log = JSON.parse(body);
                 }
-                if (error || !log ) {
-                    error = reqestStr + " failed status " + response.statusMessage + " error " + error;
+                if (!error || !log ) {
+                    error = reqestStr + " retry failed.";
                 }
                 callback(error, log);
             });
@@ -340,6 +366,29 @@ function Record(ipAddr, callback) {
     }, function (err) {
         var res;
         callback(err, res);
+    });
+}
+
+function GetLog(begin, end){
+    return new Promise(function (resolve, reject) {
+        var connectionString = 'SELECT * FROM `tstat_log` WHERE ';
+        if (begin && end) {
+            connectionString += "date between " + begin.toSQLString() + " and " + end.toSQLString();
+        }
+        else if (begin) {
+            connectionString += "date >= " + begin.toSQLString();
+        }
+        else if (end) {
+            connectionString += "date <= " + end.toSQLString();
+        }
+        else {
+            connectionString += "1";
+        }
+        pool.query(connectionString, function (err, res) {
+            if (err)
+                reject(err);
+            resolve(res);
+        });
     });
 }
 

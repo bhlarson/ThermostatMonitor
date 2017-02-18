@@ -6,17 +6,24 @@
     <link href="css/style.css" rel="stylesheet" />
 </head>
 <body>
+    <script src="js/d3.v4.min.js"></script>
+    <script src="js/d3-legend.min.js"></script>
+
     <div>
         <input type="button" value="Start Log" onclick="StartLog()" class="MainCtrl" />
         <input type="button" value="Stop Log" onclick="StopLog()" class="MainCtrl" />
         <input type="button" value="Heat Transfer Measure" onclick="HeatLossMeasure()" class="MainCtrl" />
         <input type="button" value="Heat Transfer Abort" onclick="HeatLossAbort()" class="MainCtrl" />
+        <input type="button" value="Plot" onclick="Plot()" class="MainCtrl" />
     </div>
 
     <div>
-        <textarea id="statusBox" rows="30"></textarea>
+        <textarea id="statusBox" rows="15"></textarea>
     </div>
-    <script src="js/jquery.js"></script>
+    <div class="Plot">
+        <svg id="svg_d3jsXY"></svg>
+    </div>
+    <script src="js/jquery.min.js"></script>
     <script src="js/socket.io.min.js"></script>
     <script src="js/index.js"></script>
 </body>

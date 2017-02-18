@@ -30,6 +30,7 @@
     <DebugSymbols>true</DebugSymbols>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="public\js\d3.legend.js" />
     <Compile Include="public\js\index.js" />
     <Compile Include="public\js\jquery.js" />
     <Compile Include="server.js" />
