@@ -76,7 +76,7 @@ function UpdatePlot(newData) {
         .domain([new Date(newData[0].date), new Date(newData[newData.length - 1].date)])
         .range([0, width]);
     var y = d3.scaleLinear()
-        .domain([00, 100])
+        .domain([20, 90])
         .range([height, 0]);
     
     var xAxis = d3.axisTop(x)
