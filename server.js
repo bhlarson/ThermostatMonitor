@@ -1,4 +1,4 @@
-﻿console.log("Starting ThermostatMonitor on " + process.platform + "\n");
+﻿    console.log("Starting ThermostatMonitor on " + process.platform + "\n");
 
 var express = require('express');
 var app = express();
@@ -8,7 +8,6 @@ var request = require('request');
 var schedule = require('node-schedule');
 var mysql = require('mysql');
 var fetch = require('isomorphic-fetch');
-//const noaaWeather = require('noaa-weather');
 console.log("All External Dependancies Found\n");
 
 var pollPeriodMs = 300000;
@@ -21,6 +20,28 @@ var pool = mysql.createPool({
 //  password        : 'password',
     database        : 'homedb'
 });
+
+if (!Date.prototype.toSQLString) {
+    (function () {
+        
+        function pad(number) {
+            if (number < 10) {
+                return '0' + number;
+            }
+            return number;
+        }
+        
+        Date.prototype.toSQLString = function () {
+            //return this.format("yyyy-mm-dd hh-MM-ss");
+            return this.getUTCFullYear() +
+                '-' + pad(this.getUTCMonth() + 1) +
+                '-' + pad(this.getUTCDate()) +
+                ' ' + pad(this.getUTCHours()) +
+                '-' + pad(this.getUTCMinutes()) +
+                '-' + pad(this.getUTCSeconds());
+        };
+    }());
+}
 
 var logInterval;
 var prevTstat;
@@ -373,13 +394,17 @@ function GetLog(begin, end){
     return new Promise(function (resolve, reject) {
         var connectionString = 'SELECT * FROM `tstat_log` WHERE ';
         if (begin && end) {
-            connectionString += "date between " + begin.toSQLString() + " and " + end.toSQLString();
+            var dateBegin = new Date(begin);
+            var dateEnd = new Date(end);
+            connectionString += "date between '" + dateBegin.toSQLString() + "' and '" + dateEnd.toSQLString() + "'";
         }
         else if (begin) {
-            connectionString += "date >= " + begin.toSQLString();
+            var dateBegin = new Date(begin);
+            connectionString += "date >= '" + dateBegin.toSQLString() + "'";
         }
         else if (end) {
-            connectionString += "date <= " + end.toSQLString();
+            var dateEnd = new Date(end);
+            connectionString += "date <= '" + dateEnd.toSQLString() + "'";
         }
         else {
             connectionString += "1";
