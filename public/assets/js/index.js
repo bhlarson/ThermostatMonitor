@@ -70,7 +70,7 @@ function ParseData(data) {
 
 function UpdatePlot(newData) {
     // set the dimensions and margins of the graph
-    var margin = { top: 20, right: 20, bottom: 50, left: 70 };
+    var margin = { top: 10, right: 10, bottom: 35, left: 45 };
     var plotRect = document.getElementById('TemperatureGraph').getBoundingClientRect();
     var width = plotRect.width - margin.left - margin.right;
     var height = plotRect.height - margin.top - margin.bottom;
@@ -84,14 +84,16 @@ function UpdatePlot(newData) {
         .range([height, 0]);
     
     var xAxis = d3.axisBottom(x)
-    .ticks((width + 2) / (height + 2) * 5)
-    .tickSize(height)
-    .tickPadding(8 - height);
+    //.ticks((width + 2) / (height + 2) * 5)
+    //.tickSize(height)
+    //.tickPadding(8 - height);
+    ;
     
-    var yAxis = d3.axisRight(y)
-    .ticks(5)
-    .tickSize(width)
-    .tickPadding(8 - width);
+    var yAxis = d3.axisLeft(y)
+    //.ticks(5)
+    //.tickSize(width)
+    //.tickPadding(8 - width);
+    ;
     
     var FnExteriorTemperature = d3.line()
         .x(function (d) { return (x(new Date(d.date))); })
@@ -107,12 +109,14 @@ function UpdatePlot(newData) {
     
     function zoomed() {
         var transform = d3.zoomTransform(this);
-        console.log(JSON.stringify(transform));
         gX.call(xAxis.scale(d3.event.transform.rescaleX(x)));
         gY.call(yAxis.scale(d3.event.transform.rescaleY(y)));
         tEx.attr("transform", transform);
         tIn.attr("transform", transform);
         tSet.attr("transform", transform);
+
+        svg.selectAll(".Path")
+        .attr("stroke-width", 1 / transform.k);
     }
     
     function resetted() {
@@ -135,9 +139,24 @@ function UpdatePlot(newData) {
         .attr("height", plotRect.height)
         .append("g")
         .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
-        .style("pointer-events", "all")
+        //.style("pointer-events", "all")
         .call(zoom);
         
+        svg.append("clipPath")
+      .attr("id", "clip")
+      .append("rect")
+      .attr("width", width)
+      .attr("height", height);
+        
+        // Create invisible rect for mouse tracking
+        svg.append("rect")
+    .attr("width", width)
+    .attr("height", height)
+    .attr("x", 0)
+    .attr("y", 0)
+    .attr("id", "mouse-tracker")
+    .style("fill", "white");
+       
         var color = d3.scaleOrdinal(d3.schemeCategory10)
         
         // text label for the x axis
@@ -160,6 +179,7 @@ function UpdatePlot(newData) {
         
         var gX = svg.append("g")
         .attr("class", "axis x")
+        .attr("transform", "translate(0," + height + ")")
         .call(xAxis);
         
         var gY = svg.append("g")
@@ -183,45 +203,42 @@ function UpdatePlot(newData) {
         svg.select(".legendOrdinal")
         .call(legend);
         
+        
+        // Add data to plot
         var tEx = svg.append("path")
         .data([newData])
         .style("stroke", color(0))
         .style("fill", "none")
-        .attr("class", "ExTemp")
+        .attr("class", "Path Temp Ext")
         .attr("d", FnExteriorTemperature);
         
         var tIn = svg.append("path")
         .data([newData])
         .style("stroke", color(1))
         .style("fill", "none")
-        .attr("class", "InTemp")
+        .attr("class", "Path Temp Int")
         .attr("d", FnInteriorTemperature);
         
         var tSet = svg.append("path")
         .data([newData])
         .style("stroke", color(2))
         .style("fill", "none")
-        .attr("class", "SetTemp")
+        .attr("class", "Path Temp Set")
         .attr("d", FnSetTemperature);
     }
-    else {
-        svg.select(".ExTemp")// change the line
-//            .duration(750)
+    else { // Load new data
+        svg.select(".Path.Temp.Ext")// change the line
             .data([newData])
             .attr("d", FnExteriorTemperature);
-        svg.select(".InTemp")// change the line
-//            .duration(750)
+        svg.select(".Path.Temp.Int")// change the line
             .data([newData])
             .attr("d", FnInteriorTemperature);
-        svg.select(".SetTemp")// change the line
-//            .duration(750)
+        svg.select(".Path.Temp.Set")// change the line
             .data([newData])
             .attr("d", FnSetTemperature);
         svg.select(".x.axis")// change the x axis
-//            .duration(750)
             .call(xAxis);
         svg.select(".y.axis")// change the y axis
-//            .duration(750)
             .call(yAxis);
     }
 }
