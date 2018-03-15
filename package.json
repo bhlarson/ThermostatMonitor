@@ -8,12 +8,13 @@
     "email": "bhlarson@gmail.com"
   },
   "dependencies": {
+    "dotenv": "^4.0.0",
     "express": "4.14.0",
+    "isomorphic-fetch": "2.2.1",
     "mysql": "2.13.0",
-    "request": "2.79.0",
     "noaa-weather": "0.0.4",
     "node-schedule": "1.2.0",
-    "socket.io": "1.7.2",
-    "isomorphic-fetch": "2.2.1"
+    "request": "2.79.0",
+    "socket.io": "1.7.2"
   }
 }

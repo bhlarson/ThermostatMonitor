@@ -1,5 +1,6 @@
-﻿    console.log("Starting ThermostatMonitor on " + process.platform + "\n");
+﻿console.log("Starting ThermostatMonitor on " + process.platform + " with node version " + process.version);
 
+require('dotenv').config({ path: './config.env' });
 var express = require('express');
 var app = express();
 var http = require('http').Server(app);
@@ -8,17 +9,19 @@ var request = require('request');
 var schedule = require('node-schedule');
 var mysql = require('mysql');
 var fetch = require('isomorphic-fetch');
+
 console.log("All External Dependancies Found\n");
 
 var pollPeriodMs = 300000;
 var weatherLocation = "Hillsboro, OR";
 var thermometerIPAddress = "192.168.1.82";
+var devices = [];
 var pool = mysql.createPool({
-    connectionLimit : 10,
-    host            : '192.168.1.95',
-    user            : 'HomeControl',
-//  password        : 'password',
-    database        : 'homedb'
+    connectionLimit: 10,
+    host: process.env.dbhost,
+    user: process.env.dbuser,
+    //password: 'password',
+    database: process.env.dbname
 });
 
 if (!Date.prototype.toSQLString) {
@@ -46,12 +49,65 @@ if (!Date.prototype.toSQLString) {
 var logInterval;
 var prevTstat;
 
-var port = process.env.PORT || 4454;
+var port = Number(process.env.nodeport) || 4454;
 app.use(express.static('public'));
 app.use(express.static('node_modules/socket.io/node_modules'));
 
+function init() {
+    StartLog();
+}
+init();
+
 app.get('/', function (req, res) {
     res.sendFile('index.html')
+});
+
+app.get('/GetDevices', function (req, res) {
+    GetDevices().then(function (tstats) {
+        res.send(tstats);
+    }, function (failure) {
+        res.send(failure);
+    });
+});
+
+app.get('/AddDevice', function (req, res) {
+    var newConfig = req.query.update;
+    var sql = 'INSERT INTO ' + process.env.dbdevices + ' SET ?';
+
+    pool.query(sql, newConfig, function (dberr, dbres, dbfields) {
+        res.send(dberr);
+        if (!dberr)
+            GetDevices().then(function (tstats) {
+            }, function (failure) {
+            });
+    });
+});
+
+app.get('/RemoveDevice', function (req, res) {
+    var address = req.query.address;
+    var sql = 'DELETE FROM ' + process.env.dbdevices + ' WHERE address=?';
+
+    pool.query(sql, address, function (dberr, dbres, dbfields) {
+        res.send(dberr);
+        if (!dberr)
+            GetDevices().then(function (tstats) {
+            }, function (failure) {
+            });
+    });
+});
+
+app.get('/UpdateDevice', function (req, res) {
+    var prevConfig = req.query.previous;
+    var newConfig = req.query.update;
+    var sql = 'UPDATE ' + process.env.dbdevices + ' SET ? WHERE address=' + prevConfig.address;
+
+    pool.query(sql, [newConfig], function (dberr, dbres, dbfields) {
+        res.send(dberr);
+        if (!dberr)
+            GetDevices().then(function (tstats) {
+            }, function (failure) {
+            });
+    });
 });
 
 app.get('/StartLog', function (req, res) {
@@ -136,21 +192,42 @@ function  StartLog() {
     if (logInterval) clearInterval(logInterval);
     
     try {
-        Record(thermometerIPAddress, function (err, res) {
-            if (err)
-                console.log(err);
-        });
-
-        logInterval = setInterval(function () {
-            Record(thermometerIPAddress, function (err, res) {
+        GetDevices().then(function (tstats) {
+            Record(tstats, function (err, res) {
                 if (err)
                     console.log(err);
             });
-        }, pollPeriodMs);
+
+            logInterval = setInterval(function () {
+                GetDevices().then(function (tstats) {
+                    Record(tstats, function (err, res) {
+                        if (err)
+                            console.log(err);
+                    });
+                });
+            }, pollPeriodMs);
+
+        }, function (failure) {
+            io.sockets.emit('status', err);
+        });
     }
     catch (err) {
         io.sockets.emit('status', err);
     }
+}
+
+function GetDevices() {
+    return new Promise(function (resolve, reject) {
+        var connectionString = 'SELECT * FROM `' + process.env.dbdevices + '`';
+        pool.query(connectionString, function (dberr, dbres, dbfields) {
+            if (dberr)
+                reject(dberr);
+            else {
+                devices = dbres;
+                resolve(dbres);
+            }
+        });
+    });
 }
 
 function CurrentState(ipAddr, callback)
@@ -319,9 +396,9 @@ function TemperatureSwing(ipAddr, callback) {
     });
 }
 
-function ThermostatConditions(ipAddr, callback) {
-    CurrentState(ipAddr, function (eStatus, cStatus) {
-        RunLog(ipAddr, function (eLog, rLog) {
+function ThermostatConditions(tstat, callback) {
+    CurrentState(tstat.address, function (eStatus, cStatus) {
+        RunLog(tstat.address, function (eLog, rLog) {
             var result = {
                 errStatus: eStatus, 
                 errLog: eLog,
@@ -333,7 +410,7 @@ function ThermostatConditions(ipAddr, callback) {
     });
 }
 
-function GetWeather(lat, lon) {
+function GetNoaaWeather(lat, lon) {
     return new Promise(function (resolve, reject) {
         // http://forecast.weather.gov/MapClick.php?FcstType=json&lon=-122.90274007259009&lat=45.516545019252334   
         var str = 'http://forecast.weather.gov/MapClick.php?FcstType=json&lat=' + lat + '&lon=' + lon;
@@ -349,41 +426,52 @@ function GetWeather(lat, lon) {
     });
 }
 
-function Record(ipAddr, callback) {
-    GetWeather(45.516545019252334, -122.90274007259009).then(function (currentWeather) {
-        ThermostatConditions(ipAddr, function (result) {
-            if (result.errStatus || result.errLog) {
-                io.sockets.emit('status', result);
-                console.log(JSON.stringify(result));
-            }
-            else {
-                var record = {
-                    date: new Date(), 
-                    exteriorTemperature: Number(currentWeather.Temp), 
-                    interiorTemperature: result.status.temp, 
-                    targetTemperature: isNaN, 
-                    weather: currentWeather.Weather, 
-                    windDir: currentWeather.Windd, 
-                    windSpeed: currentWeather.Winds, 
-                    fanOn: result.status.fstate == 1, 
-                    heatOn: result.status.tstate == 1, 
-                    coolOn: result.status.tstate == 2
-                };
-                
-                if (result.status.t_heat) {
-                    record.targetTemperature = result.status.t_heat;
+function Record(tstats, callback) {
+    GetNoaaWeather(45.516545019252334, -122.90274007259009).then(function (currentWeather) {
+        tstats.forEach(function (tstat) {
+            ThermostatConditions(tstat, function (result) {
+                if (result.errStatus || result.errLog) {
+                    io.sockets.emit('status', result);
+                    console.log(JSON.stringify(result));
                 }
-                else if (result.status.t_cool) {
-                    record.targetTemperature = result.status.t_cool;
+                else {
+                    var record = {
+                        address: tstat.address,
+                        date: new Date(),
+                        exteriorTemperature: Number(currentWeather.Temp),
+                        interiorTemperature: result.status.temp,
+                        targetTemperature: isNaN,
+                        weather: currentWeather.Weather,
+                        windDir: currentWeather.Windd,
+                        windSpeed: currentWeather.Winds,
+                        relativeHumidity: currentWeather.Relh, 
+                        visibility: currentWeather.Visibility,
+                        fanOn: result.status.fstate == 1,
+                        heatOn: result.status.tstate == 1,
+                        coolOn: result.status.tstate == 2,
+                        override: result.status.override,
+                        hold: result.status.hold,
+                        todayCoolRuntimeHours: result.log.today.cool_runtime.hour,
+                        todayCoolRuntimeMinutes: result.log.today.cool_runtime.minute,
+                        todayHeatRuntimeHours: result.log.today.heat_runtime.hour,
+                        todayHeatRuntimeMinutes: result.log.today.heat_runtime.minute
+                    };
+
+                    if (result.status.t_heat) {
+                        record.targetTemperature = result.status.t_heat;
+                    }
+                    else if (result.status.t_cool) {
+                        record.targetTemperature = result.status.t_cool;
+                    }
+                    prevTstat = result
+
+                    pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
+                        callback(err, res)
+                        io.sockets.emit('status', record);
+                    });
                 }
-                prevTstat = result
-                
-                pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
-                    callback(err, res)
-                    io.sockets.emit('status', record);
-                });
-            }
-        })
+            })
+        });
     }, function (err) {
         var res;
         callback(err, res);
@@ -419,4 +507,3 @@ function GetLog(begin, end){
 
 http.listen(port, function () {
 });
-StartLog();

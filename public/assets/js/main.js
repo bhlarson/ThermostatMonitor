@@ -14,7 +14,11 @@
 		xsmall:	'(max-width: 480px)'
 	});
 
-	$(function() {
+    $(function () {
+
+        $.get("GetDevices", function (serverDevices) {
+            console.log(serverDevices);
+        });
 
 		var	$window = $(window),
 			$body = $('body'),
