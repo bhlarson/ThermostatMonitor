@@ -6,9 +6,10 @@ var app = express();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var request = require('request');
+var rp = require('request-promise-native');
 var schedule = require('node-schedule');
 var mysql = require('mysql');
-var fetch = require('isomorphic-fetch');
+var fetch = require('node-fetch');
 
 console.log("All External Dependancies Found\n");
 
@@ -193,17 +194,11 @@ function  StartLog() {
     
     try {
         GetDevices().then(function (tstats) {
-            Record(tstats, function (err, res) {
-                if (err)
-                    console.log(err);
-            });
+            Record(tstats);
 
             logInterval = setInterval(function () {
                 GetDevices().then(function (tstats) {
-                    Record(tstats, function (err, res) {
-                        if (err)
-                            console.log(err);
-                    });
+                    Record(tstats);
                 });
             }, pollPeriodMs);
 
@@ -234,6 +229,54 @@ function CurrentState(ipAddr, callback)
 {
     var reqestStr = 'http://' + ipAddr + '/tstat';
     request(reqestStr, function (error, response, body) {
+        if (!error && response && response.statusCode == 200 && body) {
+            // Might have a good response.  Check data
+            var state = JSON.parse(body);
+            if (state && state.temp > 0 && (state.t_heat > 0 || state.t_cool > 0)) {
+                // Good response.  Send it back
+                callback(error, state);
+            }
+        }
+
+        else { // Bad response.  2nd try
+            request(reqestStr, function (error, response, body) {
+                var state;  // Start uninitialized.  Initialize if good.
+                if (error) {
+                    callback(error, state);
+                }
+                else if (!response || !body) {
+                    callback(new Error("Request data error"), state);
+                }
+                else if (response.statusCode == 200) {
+                    state = JSON.parse(body);
+
+                    if (state.temp <= 0 && (state.t_heat <= 0 || state.t_cool <= 0)) {
+                        // Bad response.  Return it
+                        error = new Error("Bad thermostat data");
+                    }
+                }
+                else {
+                    error = new Error(reqestStr + " failed status " + response.statusMessage + " error " + error);
+                }
+
+                callback(error, state);
+            });
+        }
+    });
+}
+
+async function CurrentStateA(ipAddr, retry=3) {
+    var reqestStr = 'http://' + ipAddr + '/tstat';
+    var response;
+    for (var i = 0; i < retry && response === undefined; i++) {
+        response = await rp(reqestStr)
+    }
+    try {
+
+    }
+    catch (err) {
+    }
+    response = await rp(reqestStr, function (error, response, body) {
         if (!error && response && response.statusCode == 200 && body) {
             // Might have a good response.  Check data
             var state = JSON.parse(body);
@@ -396,36 +439,165 @@ function TemperatureSwing(ipAddr, callback) {
     });
 }
 
-function ThermostatConditions(tstat, callback) {
-    CurrentState(tstat.address, function (eStatus, cStatus) {
-        RunLog(tstat.address, function (eLog, rLog) {
-            var result = {
-                errStatus: eStatus, 
-                errLog: eLog,
-                status: cStatus,
-                log: rLog
-            };
-            callback(result);
-        });
-    });
-}
-
-function GetNoaaWeather(lat, lon) {
+function ThermostatConditions(tstat) {
     return new Promise(function (resolve, reject) {
-        // http://forecast.weather.gov/MapClick.php?FcstType=json&lon=-122.90274007259009&lat=45.516545019252334   
-        var str = 'http://forecast.weather.gov/MapClick.php?FcstType=json&lat=' + lat + '&lon=' + lon;
-        
-        fetch(str).then(function (response) {
-            if (response.status >= 400) {
-                reject(Error(response.statusText + " " + response.status));
-            }
-            return response.json();
-        }).then(function (weather) {
-            resolve(weather.currentobservation);
-        });
+        try {
+            CurrentState(tstat.address, function (eStatus, cStatus) {
+                RunLog(tstat.address, function (eLog, rLog) {
+                    var result = {
+                        errStatus: eStatus,
+                        errLog: eLog,
+                        status: cStatus,
+                        log: rLog
+                    };
+                    resolve(result);
+                });
+            });
+        }
+        catch (err) {
+            reject(err);
+        }
     });
 }
 
+async function GetNoaaWeather(lat, lon) {
+    try {
+        var url = 'http://forecast.weather.gov/MapClick.php?FcstType=json&lat=' + lat + '&lon=' + lon;
+        var response = await fetch(url);
+        var weatherJson = await response.json();
+        return weatherJson;
+    }
+    catch (err) {
+        throw err;
+    }
+}
+
+async function Record(tstats) {
+    var weather = await GetNoaaWeather(45.516545019252334, -122.90274007259009);
+    var currentWeather = weather.currentobservation;
+    for (let tstat of tstats) {
+        result = await ThermostatConditions(tstat);
+        var record = {
+            address: tstat.address,
+            date: new Date(),
+            exteriorTemperature: Number(currentWeather.Temp),
+            interiorTemperature: result.status.temp,
+            targetTemperature: isNaN,
+            weather: currentWeather.Weather,
+            windDir: currentWeather.Windd,
+            windSpeed: currentWeather.Winds,
+            relativeHumidity: currentWeather.Relh,
+            visibility: currentWeather.Visibility,
+            fanOn: result.status.fstate == 1,
+            heatOn: result.status.tstate == 1,
+            coolOn: result.status.tstate == 2,
+            override: result.status.override,
+            hold: result.status.hold,
+            todayCoolRuntimeHours: result.log.today.cool_runtime.hour,
+            todayCoolRuntimeMinutes: result.log.today.cool_runtime.minute,
+            todayHeatRuntimeHours: result.log.today.heat_runtime.hour,
+            todayHeatRuntimeMinutes: result.log.today.heat_runtime.minute
+        };
+
+        if (result.status.t_heat) {
+            record.targetTemperature = result.status.t_heat;
+        }
+        else if (result.status.t_cool) {
+            record.targetTemperature = result.status.t_cool;
+        }
+        await pool.query('INSERT INTO tstat_log SET ?', record); // Record to DB
+        io.sockets.emit('status', record); // Send record to listening clients
+    }
+
+        /*
+        ThermostatConditions(tstat).then(result => {
+            var record = {
+                address: tstat.address,
+                date: new Date(),
+                exteriorTemperature: Number(currentWeather.Temp),
+                interiorTemperature: result.status.temp,
+                targetTemperature: isNaN,
+                weather: currentWeather.Weather,
+                windDir: currentWeather.Windd,
+                windSpeed: currentWeather.Winds,
+                relativeHumidity: currentWeather.Relh,
+                visibility: currentWeather.Visibility,
+                fanOn: result.status.fstate == 1,
+                heatOn: result.status.tstate == 1,
+                coolOn: result.status.tstate == 2,
+                override: result.status.override,
+                hold: result.status.hold,
+                todayCoolRuntimeHours: result.log.today.cool_runtime.hour,
+                todayCoolRuntimeMinutes: result.log.today.cool_runtime.minute,
+                todayHeatRuntimeHours: result.log.today.heat_runtime.hour,
+                todayHeatRuntimeMinutes: result.log.today.heat_runtime.minute
+            };
+
+            if (result.status.t_heat) {
+                record.targetTemperature = result.status.t_heat;
+            }
+            else if (result.status.t_cool) {
+                record.targetTemperature = result.status.t_cool;
+            }
+
+            pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
+                io.sockets.emit('status', record);
+            });
+        });
+        
+    });
+    */
+}
+    /*
+    .then(function (currentWeather) {
+        tstats.forEach(function (tstat) {
+            result = await ThermostatConditions(tstat);
+            if (result.errStatus || result.errLog) {
+                io.sockets.emit('status', result);
+                console.log(JSON.stringify(result));
+            }
+            else {
+                var record = {
+                    address: tstat.address,
+                    date: new Date(),
+                    exteriorTemperature: Number(currentWeather.Temp),
+                    interiorTemperature: result.status.temp,
+                    targetTemperature: isNaN,
+                    weather: currentWeather.Weather,
+                    windDir: currentWeather.Windd,
+                    windSpeed: currentWeather.Winds,
+                    relativeHumidity: currentWeather.Relh,
+                    visibility: currentWeather.Visibility,
+                    fanOn: result.status.fstate == 1,
+                    heatOn: result.status.tstate == 1,
+                    coolOn: result.status.tstate == 2,
+                    override: result.status.override,
+                    hold: result.status.hold,
+                    todayCoolRuntimeHours: result.log.today.cool_runtime.hour,
+                    todayCoolRuntimeMinutes: result.log.today.cool_runtime.minute,
+                    todayHeatRuntimeHours: result.log.today.heat_runtime.hour,
+                    todayHeatRuntimeMinutes: result.log.today.heat_runtime.minute
+                };
+
+                if (result.status.t_heat) {
+                    record.targetTemperature = result.status.t_heat;
+                }
+                else if (result.status.t_cool) {
+                    record.targetTemperature = result.status.t_cool;
+                }
+                prevTstat = result
+
+                pool.query('INSERT INTO tstat_log SET ?', record, function (err, res) {
+                    io.sockets.emit('status', record);
+                    return record;
+                });
+            }
+        });
+    }, function (err) {
+        throw (err)
+    });
+} */
+/*
 function Record(tstats, callback) {
     GetNoaaWeather(45.516545019252334, -122.90274007259009).then(function (currentWeather) {
         tstats.forEach(function (tstat) {
@@ -477,6 +649,7 @@ function Record(tstats, callback) {
         callback(err, res);
     });
 }
+*/
 
 function GetLog(begin, end){
     return new Promise(function (resolve, reject) {
