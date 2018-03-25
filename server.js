@@ -13,8 +13,10 @@ var fetch = require('node-fetch');
 
 console.log("All External Dependancies Found\n");
 
-var pollPeriodMs = 300000;
-var weatherLocation = "Hillsboro, OR";
+if (typeof process.env.pollPeriodMs === 'undefined' || process.env.pollPeriodMs === null) {
+    process.env.pollPeriodMs = 300000;
+}
+
 var thermometerIPAddress = "192.168.1.82";
 var devices = [];
 var pool = mysql.createPool({
@@ -191,20 +193,22 @@ io.on('connection', function (socket) {
 
 function  StartLog() {
     if (logInterval) clearInterval(logInterval);
-    
+  
     try {
-        GetDevices().then(function (tstats) {
-            Record(tstats);
+        if (process.env.pollPeriodMs > 0) {
+            GetDevices().then(function (tstats) {
+                Record(tstats);
 
-            logInterval = setInterval(function () {
-                GetDevices().then(function (tstats) {
-                    Record(tstats);
-                });
-            }, pollPeriodMs);
+                logInterval = setInterval(function () {
+                    GetDevices().then(function (tstats) {
+                        Record(tstats);
+                    });
+                }, process.env.pollPeriodMs);
 
-        }, function (failure) {
-            io.sockets.emit('status', err);
-        });
+            }, function (failure) {
+                io.sockets.emit('status', err);
+            });
+        }
     }
     catch (err) {
         io.sockets.emit('status', err);
