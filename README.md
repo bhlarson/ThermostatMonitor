@@ -11,13 +11,18 @@ to update:
 > cd /volume1/web/node/ThermostatMonitor
 > git pull
 
-kill process
-> pidof node  <-  node process id
+$ sudo systemctl enable ThermostatMonitor.service
+$ sudo systemctl stop ThermostatMonitor.service
+$ sudo systemctl start ThermostatMonitor.service
+$ sudo systemctl restart ThermostatMonitor.service
+$ sudo systemctl disable ThermostatMonitor.service
+$ ps -ef | grep CurtainControl
+Console out logged to "/var/log/syslog" startup logged to "/var/log/messages" Create mysql datbase:
 > sudo kill <node process id>
 
 Schedule start from DSM scheduled tasks
 diskstaton->control pannel->task scheduler
-craete a triggered tasks
+create a triggered tasks
 In the dialog, use
 Task: ThermostatMonitor
 Uses: webguest
@@ -32,6 +37,12 @@ On Settings, enable output recording to the desired location
 
 Logs:
 
-Debug:
+Debug: https://code.visualstudio.com/docs/nodejs/nodejs-debugging
+4) 
+execute project with debugger
+> sudo systemctl stop ThermostatMonitor.service
+> node --inspect-brk=0.0.0.0:9229 server.js
+
+Edit devices does not work because retrieved data is date/time.  This is rejected when sent down as a query.
 
 

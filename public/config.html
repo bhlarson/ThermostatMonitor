@@ -1,1 +1,38 @@
-﻿<!DOCTYPE html> <html xmlns="http://www.w3.org/1999/xhtml"> <head>     <meta charset="utf-8" />     <title>Curtain Configuration</title>     <!--link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"-->     <!--link href="css/style.css" rel="stylesheet" /--> </head> <body>     <div>         <input type="button" id="Main" onclick="location.href='index.html'" value="Main" />         <!--User:<input type="text" id="Username"/>         Password:<input type="password" id="Password"/>-->         <input type="button" id="Login" onclick="LogIn()" value="Log In" />     </div>      <div>         Device Configuration         <input type="button" id="AddDevice" onclick="AddDevice()" value="Add Device" />     <table border="1" id="deviceTable">             <thead>                 <tr>                     <td>Name</td>                     <td>Description</td>                     <td>Address</td>                     <td>Install</td>                     <td>Type</td>                     <td>Username</td>                     <td>Password</td>                     <td/>                 </tr>             </thead>             <tbody>             </tbody>         </table>     </div>      <script src="assets/js/jquery.min.js"></script>     <script src="assets/js/socket.io.min.js"></script>     <script src="assets/js/config.js"></script> </body>  </html>
+﻿<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+    <meta charset="utf-8" />
+    <title>Curtain Configuration</title>
+    <!--link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css"-->
+    <!--link href="css/style.css" rel="stylesheet" /-->
+</head>
+<body>
+    <div>
+        <input type="button" id="Main" onclick="location.href='index.html'" value="Main" />
+    </div>
+
+    <div>
+        Device Configuration
+        <input type="button" id="AddDevice" onclick="AddDevice()" value="Add Device" />
+    <table border="1" id="deviceTable">
+            <thead>
+                <tr>
+                    <td>Name</td>
+                    <td>Description</td>
+                    <td>Address</td>
+                    <td>Install</td>
+                    <td>Type</td>
+                    <td>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+    </div>
+
+    <script src="assets/js/jquery.min.js"></script>
+    <script src="assets/js/socket.io.min.js"></script>
+    <script src="assets/js/config.js"></script>
+</body>
+
+</html>
