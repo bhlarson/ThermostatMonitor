@@ -1,0 +1,23 @@
+# Install as /etc/systemd/system/ThermostatMonitor.service
+#$ sudo systemctl daemon-reload  # reload service
+#$ sudo systemctl enable ThermostatMonitor.service
+#$ sudo systemctl restart ThermostatMonitor.service # restart process
+#$ ps -ef | grep ThermostatMonitor
+# Output to /var/log/syslog
+
+[Unit]
+Description=Node.js ThermostatMonitor Server
+#Requires=After=mysql.service       # Requires the mysql service to run first
+
+[Service]
+ExecStart=/usr/bin/node /home/pi/ThermostatMonitor/server.js
+WorkingDirectory=/home/pi/ThermostatMonitor
+Restart=on-failure
+SyslogIdentifier=ThermostatMonitor
+User=pi
+Group=pi
+Environment=PATH=/home/pi/ThermostatMonitor
+Environment=NODE_ENV=production PORT=4454
+
+[Install]
+WantedBy=multi-user.target

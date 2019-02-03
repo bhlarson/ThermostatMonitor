@@ -11,7 +11,24 @@ var schedule = require('node-schedule');
 var mysql = require('mysql');
 var fetch = require('node-fetch');
 
-console.log("All External Dependancies Found\n");
+(function() {
+    Date.prototype.toYMD = Date_toYMD;
+    function Date_toYMD() {
+        var year, month, day;
+        year = String(this.getFullYear());
+        month = String(this.getMonth() + 1);
+        if (month.length == 1) {
+            month = "0" + month;
+        }
+        day = String(this.getDate());
+        if (day.length == 1) {
+            day = "0" + day;
+        }
+        return year + "-" + month + "-" + day;
+    }
+})();
+
+console.log("All External Dependencies Found\n");
 
 if (typeof process.env.pollPeriodMs === 'undefined' || process.env.pollPeriodMs === null) {
     process.env.pollPeriodMs = 300000;
@@ -102,15 +119,32 @@ app.get('/RemoveDevice', function (req, res) {
 app.get('/UpdateDevice', function (req, res) {
     var prevConfig = req.query.previous;
     var newConfig = req.query.update;
-    var sql = 'UPDATE ' + process.env.dbdevices + ' SET ? WHERE address=' + prevConfig.address;
+    console.log("UpdateDevice prevConfig:" + JSON.stringify(prevConfig))
+    console.log("UpdateDevice newConfig:" + JSON.stringify(newConfig))
 
-    pool.query(sql, [newConfig], function (dberr, dbres, dbfields) {
-        res.send(dberr);
-        if (!dberr)
-            GetDevices().then(function (tstats) {
-            }, function (failure) {
-            });
-    });
+    if(prevConfig && newConfig)
+    {
+        var dt = new Date(prevConfig.install);
+        prevConfig.install = dt.toYMD();
+        console.log("UpdateDevice prevConfig:" + JSON.stringify(prevConfig))
+    
+        var dt = new Date(newConfig.install);
+        newConfig.install = dt.toYMD();
+        console.log("UpdateDevice newConfig:" + JSON.stringify(newConfig))
+
+        var sql = 'UPDATE ' + process.env.dbdevices + ' SET ? WHERE address= \"'  + prevConfig.address + '\"';
+        console.log("UpdateDevice sql:" + sql)
+        pool.query(sql, [newConfig], function (dberr, dbres, dbfields) {
+            console.log("UpdateDevice query dberr:" +dberr)
+            console.log("UpdateDevice query dbres:" +JSON.stringify(dbres))
+            res.send(dberr);
+            if (!dberr)
+                GetDevices().then(function (tstats) {
+                }, function (failure) {
+                    console.log("UpdateDevice GetDevices failure:" +failure)
+                });
+        });
+    }
 });
 
 app.get('/StartLog', function (req, res) {
@@ -509,6 +543,9 @@ async function Record(tstats) {
         else if (result.status.t_cool) {
             record.targetTemperature = result.status.t_cool;
         }
+
+        //console.log(JSON.stringify(record))
+
         await pool.query('INSERT INTO tstat_log SET ?', record); // Record to DB
         io.sockets.emit('status', record); // Send record to listening clients
     }
@@ -683,4 +720,5 @@ function GetLog(begin, end){
 }
 
 http.listen(port, function () {
+    console.log("Listening on port " + port);
 });

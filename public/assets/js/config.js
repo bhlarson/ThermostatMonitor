@@ -1,4 +1,4 @@
-﻿var tstats;
+var tstats;
 
 function ValidURL(str) {
     var pattern = new RegExp('^(https?:\/\/)?' + // protocol
@@ -28,16 +28,14 @@ function AppendDevice(row, tstat, newDevice)
     const iAddr = 2;
     const iInstall = 3;
     const iType = 4;
-    const iUsername = 5;
-    const iPassword = 6;
-    const iControl = 7;
+    const iControl = 5;
     
     while (row.cells && row.cells.length > 0) {
         row.deleteCell(row.cells.length-1);
     }
 
     if (typeof tstat === 'undefined' || tstat === null) {
-        tstat = { name: '', description: '', address: '', install: Date() , type:0, username:'', password:''};
+        tstat = { name: '', description: '', address: '', install: Date() , type:0};
     }
 
     var name = document.createElement('input');
@@ -67,6 +65,7 @@ function AppendDevice(row, tstat, newDevice)
     else {
         install.value = tstat.install.substr(0, 10);
     }
+    
     var cell = row.insertCell(iInstall);
     cell.appendChild(install);
        
@@ -88,20 +87,7 @@ function AppendDevice(row, tstat, newDevice)
     }
     var cell = row.insertCell(iType);
     cell.appendChild(type);
-      
-    var username = document.createElement('input');
-    username.type = "text";
-    username.value = tstat.username;
-    var cell = row.insertCell(iUsername);
-    cell.appendChild(username);
-
-    var password = document.createElement('input');
-    password.type = "password";
-    password.value = tstat.password
-    var cell = row.insertCell(iPassword);
-    cell.appendChild(password);
-   
-
+ 
     var cell = row.insertCell(iControl);
     if (!(typeof newDevice === 'undefined' || newDevice === null)) {
         var add = document.createElement('input');
@@ -114,9 +100,7 @@ function AppendDevice(row, tstat, newDevice)
                 description: desc.value,
                 address: addr.value,
                 install: install.value,
-                type: type.value,
-                username: username.value,
-                password: password.value
+                type: type.value
             };
             
             $.get("AddDevice", { update: update }, function (err) {
@@ -138,13 +122,11 @@ function AppendDevice(row, tstat, newDevice)
         update.onclick = function () {
             
             var update = {
-                address: Number(addr.value),
                 name: name.value,
                 description: desc.value,
-                type: type.value,
-                distance: Number(distance.value),
-                install: date.value,
-                angle: Number(angle.value)
+                address: addr.value,
+                install: install.value,
+                type: type.value
             };
             
             $.get("UpdateDevice", { previous: tstat, update: update }, function (err) {
