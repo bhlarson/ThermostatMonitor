@@ -26,7 +26,7 @@ Event: Boot-up
 On task settings, enable send run details email.
 
 Run Command User defined script:
-sh /volume1/web/node/ThermostatMonitor/ThermostatMonitor.sh
+sh /volume1/web/node/ThermostatMonitor/ThermostatMonitor.sh > /volume1/web/node/ThermostatMonitor/console.log
 
 On Settings, enable output recording to the desired location
 
