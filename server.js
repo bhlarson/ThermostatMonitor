@@ -546,8 +546,16 @@ async function Record(tstats) {
 
         //console.log(JSON.stringify(record))
 
-        await pool.query('INSERT INTO tstat_log SET ?', record); // Record to DB
-        io.sockets.emit('status', record); // Send record to listening clients
+        //await pool.query('INSERT INTO ' + process.env.dblog + ' SET ?', record); // Record to DB
+        //io.sockets.emit('status', record); // Send record to listening clients
+
+        var sql = 'INSERT INTO ' + process.env.dblog + ' SET ?';
+        pool.query(sql, [record], function (dberr, dbres, dbfields) {
+            io.sockets.emit('status', record); // Send record to listening clients
+            if (dberr)
+                io.sockets.emit('status', dberr)
+        });
+
     }
 
         /*
