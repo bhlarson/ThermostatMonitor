@@ -7,6 +7,8 @@ function init() {
     
     var begin = new Date();
     var end = new Date();
+    $('#PlotStart').val(begin.toISOString().substring(0,19));
+    $('#PlotEnd').val(end.toISOString().substring(0,19));
     begin.setDate(end.getDate() - 7);
     Plot(begin, end);
 }
